@@ -1,5 +1,5 @@
 use super::{Type, TypeLayout, Variable, rcall};
-use crate::{Modifier, ModifierID, ParameterCategory, Stage, sys};
+use crate::{ImageFormat, Modifier, ModifierID, ParameterCategory, Stage, sys};
 
 #[repr(transparent)]
 pub struct VariableLayout(sys::SlangReflectionVariableLayout);
@@ -10,27 +10,31 @@ impl VariableLayout {
 	}
 
 	pub fn name(&self) -> Option<&str> {
-		self.variable().map(|v| v.name())
+		self.variable()?.name()
 	}
 
 	pub fn find_modifier(&self, id: ModifierID) -> Option<&Modifier> {
 		self.variable().and_then(|v| v.find_modifier(id))
 	}
 
-	pub fn type_layout(&self) -> &TypeLayout {
-		rcall!(spReflectionVariableLayout_GetTypeLayout(self) as &TypeLayout)
+	pub fn type_layout(&self) -> Option<&TypeLayout> {
+		rcall!(spReflectionVariableLayout_GetTypeLayout(self) as Option<&TypeLayout>)
 	}
 
-	pub fn category(&self) -> ParameterCategory {
-		self.type_layout().parameter_category()
+	pub fn category(&self) -> Option<ParameterCategory> {
+		Some(self.type_layout()?.parameter_category())
 	}
 
 	pub fn category_count(&self) -> u32 {
-		self.type_layout().category_count()
+		self.type_layout().map_or(0, |tl| tl.category_count())
 	}
 
-	pub fn category_by_index(&self, index: u32) -> ParameterCategory {
-		self.type_layout().category_by_index(index)
+	pub fn category_by_index(&self, index: u32) -> Option<ParameterCategory> {
+		Some(self.type_layout()?.category_by_index(index))
+	}
+
+	pub fn categories(&self) -> impl ExactSizeIterator<Item = ParameterCategory> {
+		(0..self.category_count()).map(|i| self.category_by_index(i).unwrap())
 	}
 
 	pub fn offset(&self, category: ParameterCategory) -> usize {
@@ -38,7 +42,7 @@ impl VariableLayout {
 	}
 
 	pub fn ty(&self) -> Option<&Type> {
-		Some(self.variable()?.ty())
+		self.variable()?.ty()
 	}
 
 	pub fn binding_index(&self) -> u32 {
@@ -51,6 +55,10 @@ impl VariableLayout {
 
 	pub fn binding_space_with_category(&self, category: ParameterCategory) -> usize {
 		rcall!(spReflectionVariableLayout_GetSpace(self, category))
+	}
+
+	pub fn image_format(&self) -> ImageFormat {
+		rcall!(spReflectionVariableLayout_GetImageFormat(self))
 	}
 
 	pub fn semantic_name(&self) -> Option<&str> {
@@ -66,7 +74,7 @@ impl VariableLayout {
 		rcall!(spReflectionVariableLayout_getStage(self))
 	}
 
-	pub fn pending_data_layout(&self) -> &VariableLayout {
-		rcall!(spReflectionVariableLayout_getPendingDataLayout(self) as &VariableLayout)
+	pub fn pending_data_layout(&self) -> Option<&VariableLayout> {
+		rcall!(spReflectionVariableLayout_getPendingDataLayout(self) as Option<&VariableLayout>)
 	}
 }
